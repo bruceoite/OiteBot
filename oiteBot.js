@@ -888,8 +888,6 @@ function dance(message) {
 }
 
 function sayFact() {
-	console.log(lists);
-	console.log(lists.facts);
 	speakOut(randomizer(lists.facts));
 }
 
