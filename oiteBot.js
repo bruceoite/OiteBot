@@ -4,10 +4,11 @@ var conf   = require('./lib/botconfig');
 var lists = require('./lib/lists');
 var queue = require('./ttQueue');
 var wootCache = require('./wootCache');
+var db = require('./db');
 
 var myScriptVersion = '1.5';
 
-var COMMANDS = 'woot, dance, theme, rules, queue, songCount, hello, data, good boy, sunglasses';
+var COMMANDS = 'woot, dance, theme, rules, queue, songCount, hello, data, good girl, sunglasses, fact, boc';
 var ADMINCMDS = 'frown, speak, silence, djgreeton, djgreetoff, danceon, danceoff, theme (newTheme), snag, goDJ, stopDJ, skip';
 var THEME = 'No current theme, sir.';
 var WOOT_RULES_1 = '1. Awesome often.';
@@ -29,6 +30,29 @@ var danceOn = true;
 var bootTTDashBots = false;
 var autoSnag = false;
 var snagCount = 0;
+var users = {};
+var banned = {};
+
+var Artist = db.Artist;
+var Song = db.Song;
+var User = db.User;
+var Play = db.Play;
+var DBConfig = db.DBConfig;
+
+var currentSong = {
+  artist: null,
+  album: null,
+  song: null,
+  songid: null,
+  djname: null,
+  djid: null,
+  up: 0,
+  down: 0,
+  listeners: 0,
+  started: 0,
+  mods: [],
+  snags: 0
+};
 
 var PM = 1;
 var TCP = 2;
@@ -39,22 +63,37 @@ bot.tcpListen(8777, '127.0.0.1');
 
 
 bot.on('ready',        function (data) {
-    bot.roomRegister(conf.WOOT);
+    bot.roomRegister(conf.DEFAULT_ROOM);
     bot.setStatus('available');
 });
 bot.on('update_votes', function (data) {
-    //console.log('Someone has voted',  data);
-});
-bot.on('registered',   function (data) {
-    if(bootTTDashBots) {
-        var user = data.user[0];
-        console.log("Checking user");
-        console.log(user);
-        if(isTTDashBot(user)) {
-            bot.bootUser(user.userid, "We don't take kindly to TT Dashboard Bots.");
-        }
+  currentSong.up = data.room.metadata.upvotes;
+  currentSong.down = data.room.metadata.downvotes;
+  currentSong.listeners = data.room.metadata.listeners;
+
+  var now = new Date();
+  var vl = data.room.metadata.votelog;
+  for (var u=0; u<vl.length; u++) {
+    if (users.hasOwnProperty(vl[u][0])) {
+      console.log(now + " VoteUp: " + users[vl[u][0]].name);
     }
+  }
+
 });
+
+bot.on('registered',   function (data) {
+	var us=data.user[0];
+  us.warns = [];
+  us.lastActive = new Date();
+  users[us.userid] = us;
+  console.log("Join: " + us.name);
+});
+
+bot.on('deregistered', function (data) {
+  delete users[data.user[0].userid];
+  console.log("Part: " + data.user[0].name);
+});
+
 bot.on('newsong',      function (data) {
     currentVote = 'NONE';
     snagCount = 0;
@@ -64,6 +103,7 @@ bot.on('newsong',      function (data) {
     if(autoSnag) {
         snag();
     }
+		newSong(data);
 });
 /*Triggered at the end of the song. (Just before the newsong/nosong event)
  *The data returned by this event contains information about the song that has just ended.*/
@@ -73,6 +113,7 @@ bot.on('endsong', function (data) {
     speakOut(song.djname + " played \"" + song.metadata.song + "\" by " +
         song.metadata.artist + ". \n" + data.room.metadata.upvotes + " :+1: " +
         data.room.metadata.downvotes + " :-1: " + snagCount + " :heart:");
+		endSong();
 });
 
 bot.on('snagged', function (data) {
@@ -83,8 +124,6 @@ bot.on('roomChanged',  function (data) {
     currentVote = 'NONE';
     adminList = data.room.metadata.moderator_id;
     adminList.push(data.room.metadata.creator.userid);
-    console.log(data.room.metadata.creator.userid);
-    console.log('Admin List:' + adminList);
     populateDjList(data);
 
     if(bot.roomId == conf.WOOT) {
@@ -99,6 +138,17 @@ bot.on('roomChanged',  function (data) {
         silence = true;
         bootTTDashBots = false;
     }
+		newSong(data);
+
+		// Repopulate user list
+		users = {}
+		for (var u=0; u<data.users.length; u++) {
+			us = data.users[u];
+			us.lastActive = new Date();
+			us.isDj = false;
+			us.warns = [];
+			users[us.userid] = us;
+  }
 });
 bot.on('add_dj', function (data) {
     if(queueOn) {
@@ -820,6 +870,17 @@ function isTTDashBot(user) {
     return false;
 }
 
+function isBanned (userid) {
+  var isbanned=false;
+  for (var d=0; d<banned.length; d++) {
+    if (banned[d] == userid) {
+      isbanned=true;
+      break;
+    }
+  }
+  return isbanned;
+}
+
 function randomDanceResponseGenerator() {
     var randomnumber=Math.floor(Math.random()*101);
     if(randomnumber > 90) {
@@ -1070,6 +1131,123 @@ function setAvatar(avatar) {
     if(avatarID) {
         bot.setAvatar(avatarID);
     }
+}
+
+function newSong(data) {
+    meta = data.room.metadata;
+    var dj = meta.current_dj;
+    if (!meta.current_song) return;
+    currentSong.artist = meta.current_song.metadata.artist;
+    currentSong.album = meta.current_song.metadata.album;
+    currentSong.song = meta.current_song.metadata.song;
+    currentSong.djname = meta.current_song.djname;
+    currentSong.songid = meta.current_song._id;
+    currentSong.djid = meta.current_song.djid;
+    currentSong.up = meta.upvotes;
+    currentSong.down = meta.downvotes;
+    currentSong.listeners = meta.listeners;
+    currentSong.started = meta.current_song.starttime;
+    currentSong.mods = meta.moderator_id;
+    currentSong.mods.push(meta.userid);
+    currentSong.snags = 0;
+    mods = currentSong.mods;
+}
+
+function endSong() {
+  log("Doing End Song data stuff");
+	var up=currentSong.up;
+  var down=currentSong.down;
+  var snag=currentSong.snags;
+  var song=currentSong.song;
+  var listeners=currentSong.listeners;
+  var songid=currentSong.songid;
+  var artist=currentSong.artist;
+  var artistid=null;
+  var djid=currentSong.djid;
+  var djname=currentSong.djname;
+  var album=currentSong.album;
+  Artist.foc(artist, function(err, docs) {
+    log(err);
+    a = docs;
+    Song.foc(songid, song, a, function(err, docs) {
+      log(err);
+      s = docs;
+      User.foc(djid, djname, function(err,docs) {
+        log(err);
+        u=docs;
+        var thisplay=null;
+        Play.foc(null, function(err, docs) {
+          log(err);
+          p = docs;
+          p.dj = djid;
+          p.listeners = listeners;
+          p.ups = up;
+          p.downs = down;
+          p.snags = snag;
+          p.song = s;
+          p.score = up - down;
+          thisplay = p;
+          p.save(function(err) {
+            log(err);
+          });
+        });
+        u.ups = u.ups ? u.ups + up : up;
+        u.downs = u.downs ? u.downs + down : down;
+        u.snags = us.snags ? u.snags + snag : snag;
+        u.plays++;
+        var score = up - down;
+        if (score > u.record) {
+          u.record = score;
+          u.recordplay = thisplay;
+        }
+        u.save(function(err) {
+          log(err)
+        });
+      });
+
+      s.ups = s.ups ? s.ups + up : up;
+      s.downs = s.downs ? s.downs + down : down;
+      s.snags = s.snags ? s.snags + snag : snag;
+      s.album = album;
+      s.plays++;
+      s.save(function(err) {
+        log(err);
+      });
+    });
+    a.ups = a.ups ? a.ups + up : up;
+    a.downs = a.downs ? a.downs + down : down;
+    a.snags = a.snags ? a.snags + snag : snag;
+    a.plays++;
+    a.save(function(err) {
+      log(err);
+    });
+    artistid = a._id;
+  });
+  var now = new Date();
+  for (var u in users) {
+    User.foc(users[u].userid, users[u].name, function(err, data) {
+      log(err);
+      us=data;
+      uid=us._id;
+      if (users.hasOwnProperty(uid)) {
+        us.lastActive=users[uid].lastActive;
+        us.lowername=users[uid].name.toLowerCase();
+        us.lastSeen=now;
+        if (users[uid].isDj==true) {
+          us.lastDj=now;
+        }
+      }
+      us.save(function(err) {
+        log(err);
+      });
+    });
+  }
+}
+
+function log(data) {
+  if (data) {
+    console.log("ERR: " + data);
+  }
 }
 
 function checkDead() {
