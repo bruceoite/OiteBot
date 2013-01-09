@@ -6,7 +6,7 @@ var queue = require('./ttQueue');
 var wootCache = require('./wootCache');
 var db = require('./db');
 
-var myScriptVersion = '1.5';
+var myScriptVersion = '2.013';
 
 var COMMANDS = 'woot, dance, theme, rules, queue, songCount, hello, data, good girl, sunglasses, fact, boc';
 var ADMINCMDS = 'frown, speak, silence, djgreeton, djgreetoff, danceon, danceoff, theme (newTheme), snag, goDJ, stopDJ, skip';
@@ -118,6 +118,7 @@ bot.on('endsong', function (data) {
 
 bot.on('snagged', function (data) {
     snagCount = snagCount + 1;
+		currentSong.snags = snagCount + 1;
 });
 bot.on('roomChanged',  function (data) {
     console.log(data);
@@ -279,7 +280,20 @@ bot.on('speak', function (data) {
                     speakOut('I will not help spread your hate.');
                 }
                 break;
-            case('rules'):
+            //Stats commands
+						case('mystats'):
+							doUserStats(data);
+							break;
+						case('mybest'):
+							doUserBest(data);
+							break;
+						case('bestplay'):
+							doRecord();
+							break;
+						case('topartist'):
+							doTopArtist();
+							break;
+						case('rules'):
                 if(bot.roomId == conf.WOOT) {
                     speakOut(WOOT_RULES_1);
                     setTimeout(function() {
@@ -1242,6 +1256,78 @@ function endSong() {
       });
     });
   }
+}
+
+function doUserStats(source) {
+  u=User.findById(source.userid, function(err,doc) {
+    if (doc) {
+      speakOut(source.name + ' - You have ' + doc.plays + ' plays ' +
+        ' totaling ' + doc.ups + ' ups, ' + doc.downs + ' downs, and ' +
+        doc.snags + ' snags.');
+    } else {
+      speakOut('I don\'t know you ' + source.name);
+    }
+  });
+}
+
+function doUserBest(source) {
+  Play.where('dj',source.userid).sort('-score played')
+    .limit(1).select('_id').exec(function(err,doc) {
+      log(err);
+      if (doc) {
+        p=doc[0];
+        if (!p) {
+          speakOut(source.name + ' - I have no record of you');
+          return;
+        }
+        Play.getPlay(p._id, function(err,doc) {
+          log(err);
+          p=doc;
+          Song.getSong(p.song._id, function(err,doc) {
+            log(err);
+            s=doc;
+            speakOut(p.dj.name + ' - your best play: '
+              + p.song.name + ' by ' + s.artist.name
+              + ' with a combined score of ' + p.score);
+          });
+        });
+      } else {
+        speakOut(source + ' - I have no record of you');
+      }
+    });
+}
+
+
+function doTopArtist() {
+  Artist.where('ups').gt(0).sort('-ups downs').limit(1)
+    .exec(function(err,doc) {
+      log(err);
+      a=doc[0];
+      speakOut('Top Artist: ' + a.name + ' with ' + a.ups +
+        ' up votes, ' + a.downs + ' down votes, ' + a.snags + ' snags ' +
+        ' and ' + a.plays + ' plays');
+    });
+  return;
+
+}
+
+function doRecord() {
+  Play.where('score').gt(0).sort('-score played')
+    .limit(1).select('_id').exec(function(err,doc) {
+      log(err);
+      p=doc[0];
+      Play.getPlay(p._id, function(err,doc) {
+        log(err);
+        p=doc;
+        Song.getSong(p.song._id, function(err,doc) {
+          log(err);
+          s=doc;
+          speakOut('Record Play: ' + p.dj.name + ' played '
+            + p.song.name + ' by ' + s.artist.name
+            + ' with a combined score of ' + p.score);
+        });
+      });
+    });
 }
 
 function log(data) {

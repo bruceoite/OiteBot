@@ -2,7 +2,7 @@
 var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
 
-mongoose.connect('mongodb://localhost/jsbot');
+mongoose.connect('mongodb://localhost/OiteBot');
 
 var User = new Schema({
   lastActive: { type: Date, default: Date.now },
@@ -140,14 +140,14 @@ Play.statics.foc = function(id, cb) {
 Play.statics.getPlay = function(id, cb) {
   p=this;
   p.findById(id).populate('dj').populate('song')
-    .run(function(err,doc) {
+    .exec(function(err,doc) {
       cb(err,doc);
   });
 }
 
 Song.statics.getSong = function(id, cb) {
   s = this;
-  s.findById(id).populate('artist').run(function(err,doc) {
+  s.findById(id).populate('artist').exec(function(err,doc) {
     cb(err,doc);
   });
 }
