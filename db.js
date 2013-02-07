@@ -52,7 +52,7 @@ var Play = new Schema({
 
 var Config = new Schema({
   key: { type: String, index: true },
-  value: [String],
+  value: [String]
 });
 
 Song.statics.foc = function(id, name, artistid, cb) {
