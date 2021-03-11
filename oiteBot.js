@@ -3,6 +3,7 @@ var conf   = require('./lib/botconfig');
 var lists = require('./lib/lists');
 var queue = require('./ttQueue');
 // var wootCache = require('./wootCache');
+var mehCache = require('./mehCache')
 var db = require('./db');
 
 var myScriptVersion = '2.013';
@@ -450,6 +451,9 @@ bot.on('speak', function (data) {
 			case('version'):
 				speakOut("OiteBot. Created by BruceOite. Currently running version " + myScriptVersion);
 				break;
+			case('meh'):
+				parseMehCommand();
+				break;
 			case('woot'):
 				parseWootCommand(values);
 				break;
@@ -608,13 +612,13 @@ function warnUser(name) {
 }
 
 function parseWootCommand(values) {
-	console.log('Parsing Woot command');
-	// if(values.length > 0) {
-	// 	var site = values.shift().toLowerCase();
-	// 	speakOut(wootCache.getWootInfo(site));
-	// } else {
-	// 	speakOut(wootCache.getWootInfo('woot'));
-	// }
+	speakOut('We actually prefer Meh.com these days');
+	parseMehCommand();
+}
+
+function parseMehCommand() {
+	console.log('Parsing Meh command');
+	speakOut(mehCache.getMehInfo());
 }
 
 function parseThemeCommand(text, userid) {
