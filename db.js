@@ -41,7 +41,7 @@ var Song = new Schema({
 
 var Play = new Schema({
   dj: { type: Schema.ObjectId, ref: 'User' },
-  listeners: { type: Number, default: 0 },
+  listens: { type: Number, default: 0 },
   ups: { type: Number, default: 0 },
   downs: { type: Number, default: 0 },
   snags: { type: Number, default: 0 },

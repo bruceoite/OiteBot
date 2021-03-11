@@ -1,9 +1,8 @@
 var Bot    = require('ttapi');
-var _und = require('./lib/underscore-min');
 var conf   = require('./lib/botconfig');
 var lists = require('./lib/lists');
 var queue = require('./ttQueue');
-var wootCache = require('./wootCache');
+// var wootCache = require('./wootCache');
 var db = require('./db');
 
 var myScriptVersion = '2.013';
@@ -138,6 +137,7 @@ bot.on('roomChanged',  function (data) {
 	currentVote = 'NONE';
 	adminList = data.room.metadata.moderator_id;
 	adminList.push(data.room.metadata.creator.userid);
+	console.log("Admin list: " + adminList);
 	populateDjList(data);
 
 	if(bot.roomId == conf.WOOT) {
@@ -190,6 +190,7 @@ bot.on('speak', function (data) {
 	if(text.match(/^\//) || text.match(/^\./)) {
 		var values = text.substring(1).split(" ");
 		var command = values.shift().toLowerCase();
+		console.log("Command: " + command);
 
 		switch(command) {
 			case('hello'):
@@ -608,12 +609,12 @@ function warnUser(name) {
 
 function parseWootCommand(values) {
 	console.log('Parsing Woot command');
-	if(values.length > 0) {
-		var site = values.shift().toLowerCase();
-		speakOut(wootCache.getWootInfo(site));
-	} else {
-		speakOut(wootCache.getWootInfo('woot'));
-	}
+	// if(values.length > 0) {
+	// 	var site = values.shift().toLowerCase();
+	// 	speakOut(wootCache.getWootInfo(site));
+	// } else {
+	// 	speakOut(wootCache.getWootInfo('woot'));
+	// }
 }
 
 function parseThemeCommand(text, userid) {
@@ -761,7 +762,7 @@ function isCurrentlyDj(userid) {
 }
 
 function isAdmin(userId) {
-	if(_und.indexOf(adminList, userId) > 0 || userId == conf.OWNER) {
+	if(adminList.includes(userId) || userId == conf.OWNER) {
 		return true;
 	} else {
 		return false;
@@ -769,7 +770,7 @@ function isAdmin(userId) {
 }
 
 function isRegular(userId) {
-	if(_und.indexOf(conf.REGULARS, userId) > 0) {
+	if(conf.REGULARS.includes(userId)) {
 		return true;
 	} else {
 		return false;
@@ -1215,7 +1216,7 @@ function endSong() {
 					log(err);
 					p = docs;
 					p.dj = djid;
-					p.listeners = listeners;
+					p.listens = listeners;
 					p.ups = up;
 					p.downs = down;
 					p.snags = snag;

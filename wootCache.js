@@ -1,5 +1,4 @@
 var http = require('http');
-var wootClient = http.createClient(80, 'api.woot.com');
 
 var wootItem;
 var shirtItem;
@@ -12,8 +11,11 @@ var techItem;
 
 function refreshCache() {
     try {
-        var request = wootClient.request("GET", "/1/sales/current.json", {
-            "host": "api.woot.com"
+        var request = http.request({
+            method: 'GET',
+            port: 80,
+            host: 'api.woot.com',
+            path: '/1/sales/current.json'
         });
     
     
