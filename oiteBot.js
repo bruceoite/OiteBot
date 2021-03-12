@@ -1,14 +1,14 @@
-var Bot    = require('ttapi');
-var conf   = require('./lib/botconfig');
+var Bot = require('ttapi');
+var conf = require('./lib/botconfig');
 var lists = require('./lib/lists');
+var commandLists = require('./lib/commands');
 var queue = require('./ttQueue');
-// var wootCache = require('./wootCache');
 var mehCache = require('./mehCache')
 var db = require('./db');
 
-var myScriptVersion = '2.013';
+var myScriptVersion = '2.0.21';
 
-var COMMANDS = 'woot, dance, theme, rules, queue, songCount, hello, data, good girl, sunglasses, fact, boc';
+var COMMANDS = 'meh, dance, theme, rules, queue, songCount, hello, data, good girl, sunglasses, fact, irk';
 var ADMINCMDS = 'frown, speak, silence, djgreeton, djgreetoff, danceon, danceoff, theme (newTheme), snag, goDJ, stopDJ, skip';
 var THEME = 'No current theme, sir.';
 var WOOT_RULES_1 = '1. Awesome often.';
@@ -22,7 +22,7 @@ var WOOT_RULES_7 = '7. Keep songs near 7 minutes max.';
 var queueOn = false;
 
 var djsList = new Object();
-var adminList = { };
+var adminList = {};
 var currentVote = 'NONE';
 var silence = false;
 var djGreetOn = true;
@@ -62,7 +62,7 @@ var bot = new Bot(conf.AUTH, conf.USERID, conf.DEFAULT_ROOM);
 bot.tcpListen(8777, '127.0.0.1');
 
 
-bot.on('ready',        function (data) {
+bot.on('ready', function (data) {
 	bot.roomRegister(conf.DEFAULT_ROOM);
 	bot.setStatus('available');
 });
@@ -73,7 +73,7 @@ bot.on('update_votes', function (data) {
 
 	var now = new Date();
 	var vl = data.room.metadata.votelog;
-	for (var u=0; u<vl.length; u++) {
+	for (var u = 0; u < vl.length; u++) {
 		if (users.hasOwnProperty(vl[u][0])) {
 			console.log(now + " VoteUp: " + users[vl[u][0]].name);
 		}
@@ -81,8 +81,8 @@ bot.on('update_votes', function (data) {
 
 });
 
-bot.on('registered',   function (data) {
-	var us=data.user[0];
+bot.on('registered', function (data) {
+	var us = data.user[0];
 	us.warns = [];
 	us.lastActive = new Date();
 	users[us.userid] = us;
@@ -95,25 +95,25 @@ bot.on('deregistered', function (data) {
 });
 
 bot.on('new_moderator', function (data) {
-	if(adminList.indexOf(data.userid) < 0) {
+	if (adminList.indexOf(data.userid) < 0) {
 		adminList.push(data.userid);
 	}
 });
 
 bot.on('rem_moderator', function (data) {
 	var modIndex = adminList.indexOf(data.userid);
-	if(modIndex >= 0) {
+	if (modIndex >= 0) {
 		adminList.splice(data.userid, 1);
 	}
 });
 
-bot.on('newsong',      function (data) {
+bot.on('newsong', function (data) {
 	currentVote = 'NONE';
 	snagCount = 0;
 	if (djsList.hasOwnProperty(data.room.metadata.current_dj)) {
 		djsList[data.room.metadata.current_dj].plays++;
 	}
-	if(autoSnag) {
+	if (autoSnag) {
 		snag();
 	}
 	newSong(data);
@@ -133,7 +133,7 @@ bot.on('snagged', function (data) {
 	snagCount = snagCount + 1;
 	currentSong.snags = snagCount + 1;
 });
-bot.on('roomChanged',  function (data) {
+bot.on('roomChanged', function (data) {
 	console.log(data);
 	currentVote = 'NONE';
 	adminList = data.room.metadata.moderator_id;
@@ -141,7 +141,7 @@ bot.on('roomChanged',  function (data) {
 	console.log("Admin list: " + adminList);
 	populateDjList(data);
 
-	if(bot.roomId == conf.WOOT) {
+	if (bot.roomId == conf.WOOT) {
 		danceOn = true;
 		djGreetOn = true;
 		silence = false;
@@ -157,7 +157,7 @@ bot.on('roomChanged',  function (data) {
 
 	// Repopulate user list
 	users = {}
-	for (var u=0; u<data.users.length; u++) {
+	for (var u = 0; u < data.users.length; u++) {
 		us = data.users[u];
 		us.lastActive = new Date();
 		us.isDj = false;
@@ -166,14 +166,14 @@ bot.on('roomChanged',  function (data) {
 	}
 });
 bot.on('add_dj', function (data) {
-	if(queueOn) {
+	if (queueOn) {
 		processNewDJ(data.user[0]);
-	} else if(djGreetOn) {
+	} else if (djGreetOn) {
 		greetNewDJ(data.user[0]);
 	}
 	addActiveDJ(data.user[0]);
 });
-bot.on('rem_dj', function(data) {
+bot.on('rem_dj', function (data) {
 	if (data.success) {
 		removeActiveDJ(data.user[0].userid);
 	}
@@ -184,296 +184,229 @@ bot.on('speak', function (data) {
 	var text = data.text;
 	var userid = data.userid;
 
-	if(userid == conf.USERID) {
+	if (userid == conf.USERID) {
 		return;
 	}
 
-	if(text.match(/^\//) || text.match(/^\./)) {
-		var values = text.substring(1).split(" ");
-		var command = values.shift().toLowerCase();
-		console.log("Command: " + command);
-
-		switch(command) {
-			case('hello'):
-			case('hi'):
-			case('hey'):
-				speakOut('Hey ' + name + '!');
-				break;
-			//Dancing commands
-			case('boogie'):
-			case('boxstep'):
-			case('breakdance'):
-			case('cabbagepatch'):
-			case('carlton'):
-			case('thecarlton'):
-			case('chacha'):
-			case('charliebrown'):
-			case('charleston'):
-			case('dance'):
-			case('disco'):
-			case('dougie'):
-			case('electricslide'):
-			case('grind'):
-			case('groove'):
-			case('handjive'):
-			case('headbang'):
-			case('hokeypokey'):
-			case('hula'):
-			case('hustle'):
-			case('thehustle'):
-			case('jazzhands'):
-			case('jig'):
-			case('jitterbug'):
-			case('jive'):
-			case('lindyhop'):
-			case('mambo'):
-			case('mashedpotato'):
-			case('moonwalk'):
-			case('mosh'):
-			case('pogo'):
-			case('poledance'):
-			case('polka'):
-			case('popandlock'):
-			case('popnlock'):
-			case('robot'):
-			case('rock'):
-			case('rockout'):
-			case('rock out'):
-			case('rocklobster'):
-			case('runningman'):
-			case('safetydance'):
-			case('salsa'):
-			case('shimmy'):
-			case('shuffle'):
-			case('shufflin'):
-			case('skank'):
-			case('snoopydance'):
-			case('snoopy'):
-			case('squaredance'):
-			case('sway'):
-			case('swing'):
-			case('tango'):
-			case('tapdance'):
-			case('truffleshuffle'):
-			case('twist'):
-			case('vogue'):
-			case('waltz'):
-			case('watusi'):
-			case('wiggle'):
-			case('worm'):
-			case('theworm'):
-			case('ymca'):
-				dance();
-				break;
-			case('kiss'):
-				dance("Aw shucks... Thanks " + name + "! :kiss:");
-				break;
-			case('hug'):
-				dance('SQUEEZE!');
-				break;
-			case('fonz'):
-			case('fonzie'):
-				dance('Ayyyyeeeee! :thumbsup: :thumbsup:');
-				break;
-			case('botsnack'):
-				dance('OM NOM NOM');
-				break;
-			case('fozzie'):
-			case('fozziebear'):
-				speakOut('Waka Waka Waka');
-				break;
-			case('frown'):
-				if(isAdmin(userid)) {
-					if(currentVote == 'down') {
-						speakOut('I have already expressed my displeasure for the current musical selection');
-					} else {
-						bot.vote('down');
-						speakOut('What is this? I don\'t even...');
-						currentVote = 'down';
-					}
-				} else {
-					speakOut('I will not help spread your hate.');
-				}
-				break;
-			//Stats commands
-			case('mystats'):
-				doUserStats(data);
-				break;
-			case('mybest'):
-				doUserBest(data);
-				break;
-			case('bestplay'):
-				doRecord();
-				break;
-			case('topartist'):
-				doTopArtist();
-				break;
-			case('rules'):
-				if(bot.roomId == conf.WOOT) {
-					speakOut(WOOT_RULES_1);
-					setTimeout(function() {
-						speakOut(WOOT_RULES_2)
-					}, 250);
-					setTimeout(function() {
-						speakOut(WOOT_RULES_3)
-					}, 500);
-					setTimeout(function() {
-						speakOut(WOOT_RULES_4)
-					}, 750);
-					setTimeout(function() {
-						speakOut(WOOT_RULES_5)
-					}, 1000);
-					setTimeout(function() {
-						speakOut(WOOT_RULES_6)
-					}, 1250);
-					setTimeout(function() {
-						speakOut(WOOT_RULES_7)
-					}, 1500);
-				}
-				break;
-			case('commands'):
-				listCommands(userid);
-				break;
-			case('songcount'):
-			case('sc'):
-				printSongCount();
-				break;
-			case('clearsc'):
-			case('scclear'):
-				if(isAdmin(userid)) {
-					resetSongCount();
-					speakOut('Song count reset for all DJs');
-				}
-				break;
-			case('setsc'):
-			case('scset'):
-			case('setsoundcount'):
-				if(isAdmin(userid)) {
-					console.log(values);
-					if(values.length > 1) {
-						var value = values.pop();
-						var user = values.join(" ");
-						console.log('user: ' + user);
-						console.log('number: ' + value);
-						setSongCount(user, value);
-					}
-				}
-				break;
-			case('q'):
-			case('queue'):
-				parseQueueCommand(values,userid,name);
-				break;
-			case('speak'):
-			case('talk'):
-				if(isAdmin(userid)) {
-					silence = false;
-					speakOut('I can talk!');
-				}
-				break;
-			case('silence'):
-				if(isAdmin(userid)) {
-					speakOut('I\'ll be quiet');
-					silence = true;
-				} else {
-					speakOut('You can\'t shut me up');
-				}
-				break;
-			case('djgreeton'):
-				if(isAdmin(userid)) {
-					djGreetOn = true;
-					speakOut('DJ Greeting turned on');
-				}
-				break;
-			case('djgreetoff'):
-				if(isAdmin(userid)) {
-					djGreetOn = false;
-					speakOut('DJ Greeting turned off');
-				}
-				break;
-			case('danceon'):
-				if(isAdmin(userid)) {
-					danceOn = true;
-					speakOut('Footloose! Kick off your Sunday shoes!');
-				}
-				break;
-			case('danceoff'):
-				if(isAdmin(userid)) {
-					danceOn = false;
-					speakOut('I\'m never going to dance again. Guilty feet have got no rhythm');
-				}
-				break;
-			case('theme'):
-				if(values.length > 0) {
-					parseThemeCommand(values.join(' '), userid);
-				} else {
-					sayTheme(userid);
-				}
-				break;
-			case('snag'):
-				if(userid == conf.OWNER) {
-					snag();
-				}
-				break;
-			case('godj'):
-				if(isAdmin(userid) || isRegular(userid)) {
-					bot.addDj();
-				} else {
-					speakOut('Nah, I\'m good just chillin\', laid back, sippin\' on gin and juice');
-				}
-				break;
-			case('stopdj'):
-			case('stepdown'):
-				if(isAdmin(userid) || isRegular(userid)) {
-					bot.remDj();
-				} else {
-					speakOut('You\'ll never stop the music!');
-				}
-				break;
-			case('skip'):
-			case('skipsong'):
-				if(isAdmin(userid) || isRegular(userid)) {
-					bot.skip();
-				}
-				break;
-			case('data'):
-				speakOut('Yes Captain Picard?');
-				break;
-			case('sunglasses'):
-				putOnSunglasses();
-				break;
-			case('good'):
-				if(values.length == 1) {
-					if(values[0] == 'boy' || values[0] == 'girl') {
-						speakOut("Woof!");
-					}
-				}
-				break;
-			case('version'):
-				speakOut("OiteBot. Created by BruceOite. Currently running version " + myScriptVersion);
-				break;
-			case('meh'):
-				parseMehCommand();
-				break;
-			case('woot'):
-				parseWootCommand(values);
-				break;
-			case('fact'):
-				sayFact();
-				break;
-			case('boc'):
-				sayBoc();
-				break;
-
-		}
-
-	} else if(text == ':dancers:') {
+	if (text == ':dancers:') {
 		dance();
+		return;
 	}
+
+	if (!text.match(/^\//) && !text.match(/^\./)) {
+		return;
+	}
+
+	var values = text.substring(1).split(" ");
+	var command = values.shift().toLowerCase();
+	console.log("Command: " + command);
+
+	if (commandLists.greetings.includes(command)) {
+		speakOut('Hey ' + name + '!');
+		return;
+	}
+
+	if (commandLists.dances.includes(command)) {
+		handleDanceCommand(command, name);
+		return;
+	}
+
+	switch (command) {
+		case ('fozzie'):
+		case ('fozziebear'):
+			speakOut('Waka Waka Waka');
+			break;
+		case ('frown'):
+			if (isAdmin(userid)) {
+				if (currentVote == 'down') {
+					speakOut('I have already expressed my displeasure for the current musical selection');
+				} else {
+					bot.vote('down');
+					speakOut('What is this? I don\'t even...');
+					currentVote = 'down';
+				}
+			} else {
+				speakOut('I will not help spread your hate.');
+			}
+			break;
+		//Stats commands
+		case ('mystats'):
+			doUserStats(data);
+			break;
+		case ('mybest'):
+			doUserBest(data);
+			break;
+		case ('bestplay'):
+			doRecord();
+			break;
+		case ('topartist'):
+			doTopArtist();
+			break;
+		case ('rules'):
+			if (bot.roomId == conf.WOOT) {
+				speakOut(WOOT_RULES_1);
+				setTimeout(function () {
+					speakOut(WOOT_RULES_2)
+				}, 250);
+				setTimeout(function () {
+					speakOut(WOOT_RULES_3)
+				}, 500);
+				setTimeout(function () {
+					speakOut(WOOT_RULES_4)
+				}, 750);
+				setTimeout(function () {
+					speakOut(WOOT_RULES_5)
+				}, 1000);
+				setTimeout(function () {
+					speakOut(WOOT_RULES_6)
+				}, 1250);
+				setTimeout(function () {
+					speakOut(WOOT_RULES_7)
+				}, 1500);
+			}
+			break;
+		case ('commands'):
+			listCommands(userid);
+			break;
+		case ('songcount'):
+		case ('sc'):
+			printSongCount();
+			break;
+		case ('clearsc'):
+		case ('scclear'):
+			if (isAdmin(userid)) {
+				resetSongCount();
+				speakOut('Song count reset for all DJs');
+			}
+			break;
+		case ('setsc'):
+		case ('scset'):
+		case ('setsoundcount'):
+			if (isAdmin(userid)) {
+				console.log(values);
+				if (values.length > 1) {
+					var value = values.pop();
+					var user = values.join(" ");
+					console.log('user: ' + user);
+					console.log('number: ' + value);
+					setSongCount(user, value);
+				}
+			}
+			break;
+		case ('q'):
+		case ('queue'):
+			parseQueueCommand(values, userid, name);
+			break;
+		case ('speak'):
+		case ('talk'):
+			if (isAdmin(userid)) {
+				silence = false;
+				speakOut('I can talk!');
+			}
+			break;
+		case ('silence'):
+			if (isAdmin(userid)) {
+				speakOut('I\'ll be quiet');
+				silence = true;
+			} else {
+				speakOut('You can\'t shut me up');
+			}
+			break;
+		case ('djgreeton'):
+			if (isAdmin(userid)) {
+				djGreetOn = true;
+				speakOut('DJ Greeting turned on');
+			}
+			break;
+		case ('djgreetoff'):
+			if (isAdmin(userid)) {
+				djGreetOn = false;
+				speakOut('DJ Greeting turned off');
+			}
+			break;
+		case ('danceon'):
+			if (isAdmin(userid)) {
+				danceOn = true;
+				speakOut('Footloose! Kick off your Sunday shoes!');
+			}
+			break;
+		case ('danceoff'):
+			if (isAdmin(userid)) {
+				danceOn = false;
+				speakOut('I\'m never going to dance again. Guilty feet have got no rhythm');
+			}
+			break;
+		case ('theme'):
+			if (values.length > 0) {
+				parseThemeCommand(values.join(' '), userid);
+			} else {
+				sayTheme(userid);
+			}
+			break;
+		case ('snag'):
+			if (userid == conf.OWNER) {
+				snag();
+			}
+			break;
+		case ('godj'):
+			if (isAdmin(userid) || isRegular(userid)) {
+				bot.addDj();
+			} else {
+				speakOut('Nah, I\'m good just chillin\', laid back, sippin\' on gin and juice');
+			}
+			break;
+		case ('stopdj'):
+		case ('stepdown'):
+			if (isAdmin(userid) || isRegular(userid)) {
+				bot.remDj();
+			} else {
+				speakOut('You\'ll never stop the music!');
+			}
+			break;
+		case ('skip'):
+		case ('skipsong'):
+			if (isAdmin(userid) || isRegular(userid)) {
+				bot.skip();
+			}
+			break;
+		case ('data'):
+			speakOut('Yes Captain Picard?');
+			break;
+		case ('sunglasses'):
+			putOnSunglasses();
+			break;
+		case ('good'):
+			if (values.length == 1) {
+				if (values[0] == 'boy' || values[0] == 'girl') {
+					speakOut("Woof!");
+				}
+			}
+			break;
+		case ('version'):
+			speakOut("OiteBot. Created by BruceOite. Currently running version " + myScriptVersion);
+			break;
+		case ('meh'):
+			parseMehCommand();
+			break;
+		case ('woot'):
+			parseWootCommand(values);
+			break;
+		case ('fact'):
+			sayFact();
+			break;
+		case ('irk'):
+		case ('boc'):
+			sayBoc();
+			break;
+
+	}
+
+
 });
 
 bot.on('pmmed', function (data) {
 	console.log('\nIncoming personal message:', data);
-	if(isAdmin(data.senderid)) {
+	if (isAdmin(data.senderid)) {
 		adminCommands(data.text, PM, data.senderid);
 	} else {
 		bot.pm("Thanks for sharing!", data.senderid);
@@ -481,7 +414,7 @@ bot.on('pmmed', function (data) {
 });
 
 bot.on('tcpMessage', function (socket, msg) {
-	console.log('TCP message received',msg);
+	console.log('TCP message received', msg);
 	adminCommands(msg, TCP, conf.OWNER);
 });
 
@@ -490,18 +423,18 @@ function adminCommands(msg, msgMethod, senderId) {
 	var command = values.shift();
 	switch (command) {
 		case 'silence':
-			silence=true;
+			silence = true;
 			respond('Bot silenced.', msgMethod, senderId);
 			break;
 		case 'speak':
-			silence=false;
+			silence = false;
 			respond('Bot will now speak', msgMethod, senderId);
 			break;
 		case 'dance':
 			bot.vote('up');
 			break;
 		case 'room':
-			if(values.length > 0) {
+			if (values.length > 0) {
 				switchRoom(values[0]);
 			}
 			break;
@@ -554,11 +487,11 @@ function adminCommands(msg, msgMethod, senderId) {
 		case 'snagoff':
 			autoSnag = false;
 			break;
-		case('setsc'):
-		case('scset'):
-		case('setsoundcount'):
+		case ('setsc'):
+		case ('scset'):
+		case ('setsoundcount'):
 			console.log(values);
-			if(values.length > 1) {
+			if (values.length > 1) {
 				var value = values.pop();
 				var user = values.join(" ");
 				console.log('user: ' + user);
@@ -599,7 +532,7 @@ function respond(msg, method, receiverid) {
 
 function processNewDJ(user) {
 	var name = user.name;
-	if(queue.isUserNextInQueue(name)) {
+	if (queue.isUserNextInQueue(name)) {
 		greetNewDJ(user);
 		queue.removeUser(name);
 	} else {
@@ -609,6 +542,29 @@ function processNewDJ(user) {
 
 function warnUser(name) {
 	speakOut(name + ' please step down. We currently have a queue. If you would like to be added, type /q add.');
+}
+
+function handleDanceCommand(command, name) {
+	var message = '';
+	switch (command) {
+		case ('hug'):
+			message = 'SQUEEZE!';
+			break;
+		case ('kiss'):
+			message = 'Aw shucks... Thanks ' + name + '! :kiss:';
+			break;
+		case ('fonz'):
+		case ('fonzie'):
+			message = 'Ayyyyeeeee! :thumbsup: :thumbsup:';
+			break;
+		case ('botsnack'):
+			message = 'OM NOM NOM';
+			break;
+		default:
+			message = '';
+			break;
+	}
+	dance(message);
 }
 
 function parseWootCommand(values) {
@@ -622,8 +578,8 @@ function parseMehCommand() {
 }
 
 function parseThemeCommand(text, userid) {
-	if(isAdmin(userid)) {
-		if(text == 'none') {
+	if (isAdmin(userid)) {
+		if (text == 'none') {
 			THEME = 'No current theme, sir.';
 		} else {
 			THEME = text;
@@ -635,7 +591,7 @@ function parseThemeCommand(text, userid) {
 
 
 function sayTheme(userid) {
-	if(isAdmin(userid)) {
+	if (isAdmin(userid)) {
 		bot.speak(THEME);
 	} else {
 		speakOut(THEME);
@@ -644,29 +600,29 @@ function sayTheme(userid) {
 
 function parseQueueCommand(values, userid, name) {
 	console.log('Parsing Queue command');
-	if(values.length > 0) {
+	if (values.length > 0) {
 		console.log('Switching Queue command');
 		var command = values.shift().toLowerCase();
-		switch(command) {
+		switch (command) {
 			case ('add'):
-				if(queueOn) {
-					if(values.length > 0) {
-						if(isAdmin(userid)) {
+				if (queueOn) {
+					if (values.length > 0) {
+						if (isAdmin(userid)) {
 							var userName = values.join(' ');
 							queue.addUser(userName);
 							speakOut(userName + ' has been added to the queue.');
 						}
 					} else {
-						if(addUserToQueue(name, userid)) {
+						if (addUserToQueue(name, userid)) {
 							speakOut(name + ' has been added to the queue.');
 						}
 					}
 				}
 				break;
 			case ('remove'):
-				if(queueOn) {
-					if(values.length > 0) {
-						if(isAdmin(userid)) {
+				if (queueOn) {
+					if (values.length > 0) {
+						if (isAdmin(userid)) {
 							var userName = values.join(' ');
 							queue.removeUser(userName);
 							speakOut(userName + ' has been removed from the queue.');
@@ -678,8 +634,8 @@ function parseQueueCommand(values, userid, name) {
 				}
 				break;
 			case ('start'):
-				if(isAdmin(userid)) {
-					if(!queueOn) {
+				if (isAdmin(userid)) {
+					if (!queueOn) {
 						turnQueueOn();
 					} else {
 						speakOut('Queue is already on, sir');
@@ -687,8 +643,8 @@ function parseQueueCommand(values, userid, name) {
 				}
 				break;
 			case ('stop'):
-				if(isAdmin(userid)) {
-					if(queueOn) {
+				if (isAdmin(userid)) {
+					if (queueOn) {
 						turnQueueOff();
 					} else {
 						speakOut('Queue is already off, sir');
@@ -696,7 +652,7 @@ function parseQueueCommand(values, userid, name) {
 				}
 				break;
 			case ('clear'):
-				if(isAdmin(userid)) {
+				if (isAdmin(userid)) {
 					queue.clearQueue();
 				}
 				break;
@@ -710,7 +666,7 @@ function parseQueueCommand(values, userid, name) {
 		}
 	} else {
 		displayQueue();
-		setTimeout(function() {
+		setTimeout(function () {
 			listQueueCommands()
 		}, 250);
 	}
@@ -730,17 +686,17 @@ function displayQueue() {
 }
 
 function turnQueueOn() {
-	queueOn=true;
+	queueOn = true;
 	bot.speak('The queue is now open. If you would like to join, type "/queue add"');
 }
 
 function turnQueueOff() {
-	queueOn=false;
+	queueOn = false;
 	bot.speak('The queue is now closed. Anyone can jump up on the decks.');
 }
 
 function sayQueue(userid) {
-	if(isAdmin(userid)) {
+	if (isAdmin(userid)) {
 		bot.speak(queue.listQueue());
 	} else {
 		speakOut(queue.listQueue());
@@ -748,10 +704,10 @@ function sayQueue(userid) {
 }
 
 function addUserToQueue(name, userid) {
-	if(isCurrentlyDj(userid)) {
+	if (isCurrentlyDj(userid)) {
 		speakOut(name + ' is currently DJing. Not adding to queue.');
 		return false;
-	} else if(queue.isUserInQueue(name)){
+	} else if (queue.isUserInQueue(name)) {
 		speakOut(name + ' is already in the queue.');
 		return false;
 	} else {
@@ -766,7 +722,7 @@ function isCurrentlyDj(userid) {
 }
 
 function isAdmin(userId) {
-	if(adminList.includes(userId) || userId == conf.OWNER) {
+	if (adminList.includes(userId) || userId == conf.OWNER) {
 		return true;
 	} else {
 		return false;
@@ -774,7 +730,7 @@ function isAdmin(userId) {
 }
 
 function isRegular(userId) {
-	if(conf.REGULARS.includes(userId)) {
+	if (conf.REGULARS.includes(userId)) {
 		return true;
 	} else {
 		return false;
@@ -782,13 +738,13 @@ function isRegular(userId) {
 }
 
 function speakOut(msg) {
-	if(silence == false) {
+	if (silence == false) {
 		bot.speak(msg);
 	}
 }
 
 function listCommands(userid) {
-	if(isAdmin(userid)) {
+	if (isAdmin(userid)) {
 		bot.speak(COMMANDS);
 		bot.speak(ADMINCMDS)
 	} else {
@@ -820,9 +776,9 @@ function removeActiveDJ(userid) {
 }
 
 function printSongCount() {
-	for(var i in djsList) {
+	for (var i in djsList) {
 		var outPut = djsList[i].name + ' : ' + djsList[i].plays;
-		if(silence == false) {
+		if (silence == false) {
 			bot.speak(outPut);
 		} else {
 			console.log(outPut);
@@ -832,28 +788,28 @@ function printSongCount() {
 
 function setSongCount(userName, number) {
 	console.log(userName);
-	for(var i in djsList) {
+	for (var i in djsList) {
 		console.log(djsList[i].name);
-		if(djsList[i].name == userName) {
+		if (djsList[i].name == userName) {
 			djsList[i].plays = number;
 		}
 	}
 }
 
 function resetSongCount() {
-	for(var i in djsList) {
+	for (var i in djsList) {
 		djsList[i].plays = 0;
 	}
 }
 
 function populateDjList(data) {
 	djsList = new Object();
-	if(data) {
+	if (data) {
 		var djs = data.room.metadata.djs;
 		var users = data.users;
-		for(var i in djs) {
+		for (var i in djs) {
 			var user = findUser(djs[i], users);
-			if(user) {
+			if (user) {
 				addActiveDJ(user);
 			}
 		}
@@ -862,10 +818,10 @@ function populateDjList(data) {
 
 function findUser(djId, users) {
 	var targetUser;
-	for(var i in users) {
+	for (var i in users) {
 		var user = users[i];
 		console.log(user + ':' + user.userid);
-		if(djId == user.userid) {
+		if (djId == user.userid) {
 			targetUser = user;
 			break;
 		}
@@ -875,19 +831,19 @@ function findUser(djId, users) {
 
 function putOnSunglasses() {
 	speakOut('( \u2022_\u2022)');
-	setTimeout(function() {
+	setTimeout(function () {
 		speakOut('( \u2022_\u2022)>\u2310\u25a0-\u25a0')
 	}, 1000);
-	setTimeout(function() {
+	setTimeout(function () {
 		speakOut('(\u2310\u25a0_\u25a0')
 	}, 2000);
 }
 
 function playlistRandom() {
-	bot.playlistAll(function(playlist) {
+	bot.playlistAll(function (playlist) {
 		console.log("Playlist length: " + playlist.list.length);
 		var i = 0;
-		var reorder = setInterval(function() {
+		var reorder = setInterval(function () {
 			if (i <= playlist.list.length) {
 				var nextId = Math.ceil(Math.random() * playlist.list.length);
 				bot.playlistReorder(i, nextId);
@@ -903,17 +859,17 @@ function playlistRandom() {
 }
 
 function isTTDashBot(user) {
-	if(user) {
+	if (user) {
 		return user.name.match(/^ttdashboard_/);
 	}
 	return false;
 }
 
-function isBanned (userid) {
-	var isbanned=false;
-	for (var d=0; d<banned.length; d++) {
+function isBanned(userid) {
+	var isbanned = false;
+	for (var d = 0; d < banned.length; d++) {
 		if (banned[d] == userid) {
-			isbanned=true;
+			isbanned = true;
 			break;
 		}
 	}
@@ -921,42 +877,42 @@ function isBanned (userid) {
 }
 
 function randomDanceResponseGenerator() {
-	var randomnumber=Math.floor(Math.random()*101);
-	if(randomnumber > 90) {
+	var randomnumber = Math.floor(Math.random() * 101);
+	if (randomnumber > 90) {
 		return "Rocking out with my dongle out.";
-	} else if(randomnumber > 85) {
+	} else if (randomnumber > 85) {
 		return "/me gets her groove on";
-	} else if(randomnumber > 80) {
+	} else if (randomnumber > 80) {
 		return "/me starts doing the Dougie";
-	} else if(randomnumber > 75) {
+	} else if (randomnumber > 75) {
 		return "/me raises her hands and goes WOOOOOOOO!!!";
-	} else if(randomnumber > 70) {
+	} else if (randomnumber > 70) {
 		return "Skanking my little heart out";
-	} else if(randomnumber > 65) {
+	} else if (randomnumber > 65) {
 		return "/me pirouettes";
-	} else if(randomnumber > 60) {
+	} else if (randomnumber > 60) {
 		return "I love this song!";
-	} else if(randomnumber > 55) {
+	} else if (randomnumber > 55) {
 		return "Tappa Tappa Tappa";
-	} else if(randomnumber > 50) {
+	} else if (randomnumber > 50) {
 		return "Tappa Tappa Tappa";
-	} else if(randomnumber > 45) {
+	} else if (randomnumber > 45) {
 		return "Shaking my moneymaker";
-	} else if(randomnumber > 40) {
+	} else if (randomnumber > 40) {
 		return "Shaking my moneymaker";
-	} else if(randomnumber > 35) {
+	} else if (randomnumber > 35) {
 		return "MOSH PIT!";
-	} else if(randomnumber > 30) {
+	} else if (randomnumber > 30) {
 		return "MOSH PIT!";
-	} else if(randomnumber > 25) {
+	} else if (randomnumber > 25) {
 		return "I would love to dance with you!";
-	} else if(randomnumber > 20) {
+	} else if (randomnumber > 20) {
 		return "I would love to dance with you!";
-	} else if(randomnumber > 15) {
+	} else if (randomnumber > 15) {
 		return "You gonna get served";
-	} else if(randomnumber > 10) {
+	} else if (randomnumber > 10) {
 		return "You gonna get served";
-	} else if(randomnumber > 5) {
+	} else if (randomnumber > 5) {
 		return "You gonna get served";
 	} else {
 		return "Doin the Charleston";
@@ -964,19 +920,19 @@ function randomDanceResponseGenerator() {
 }
 
 function dance(message) {
-	if(danceOn) {
-		if(currentVote == 'up') {
-			if(message) {
+	if (danceOn) {
+		if (currentVote == 'up') {
+			if (message) {
 				speakOut(message);
 			} else {
 				speakOut('Already shaking my booty sir.');
 			}
 
-		} else if(currentVote == 'down') {
+		} else if (currentVote == 'down') {
 			speakOut('I already expressed my disappoint with this song. I shall not dance');
 		} else {
 			bot.vote('up');
-			if(message) {
+			if (message) {
 				speakOut(message);
 			} else {
 				speakOut(randomDanceResponseGenerator());
@@ -996,7 +952,7 @@ function sayBoc() {
 }
 
 function randomizer(array) {
-	var rand = Math.floor(Math.random()*10000);
+	var rand = Math.floor(Math.random() * 10000);
 	return array[rand % array.length];
 }
 
@@ -1006,168 +962,168 @@ function randomBoc() {
 
 function snag() {
 	bot.snag();
-	bot.roomInfo(true, function(data) {
+	bot.roomInfo(true, function (data) {
 		var newSong = data.room.metadata.current_song._id;
 		var newSongName = songName = data.room.metadata.current_song.metadata.song;
 		bot.playlistAdd(newSong);
-		speakOut('Added '+ newSongName +' to playlist.');
+		speakOut('Added ' + newSongName + ' to playlist.');
 	});
 }
 
 function setAvatar(avatar) {
 	var avatarID;
-	switch(avatar) {
-		case('asian girl'):
-		case('1'):
+	switch (avatar) {
+		case ('asian girl'):
+		case ('1'):
 			avatarID = 1;
 			break;
-		case('green girl'):
-		case('2'):
+		case ('green girl'):
+		case ('2'):
 			avatarID = 2;
 			break;
-		case('red girl'):
-		case('3'):
+		case ('red girl'):
+		case ('3'):
 			avatarID = 3;
 			break;
-		case('ginger girl'):
-		case('4'):
+		case ('ginger girl'):
+		case ('4'):
 			avatarID = 4;
 			break;
-		case('brown boy'):
-		case('5'):
+		case ('brown boy'):
+		case ('5'):
 			avatarID = 5;
 			break;
-		case('brown girl'):
-		case('6'):
+		case ('brown girl'):
+		case ('6'):
 			avatarID = 6;
 			break;
-		case('boy'):
-		case('7'):
+		case ('boy'):
+		case ('7'):
 			avatarID = 7;
 			break;
-		case('ginger boy'):
-		case('8'):
+		case ('ginger boy'):
+		case ('8'):
 			avatarID = 8;
 			break;
-		case('tan bear'):
-		case('9'):
+		case ('tan bear'):
+		case ('9'):
 			avatarID = 9;
 			break;
-		case('pin bear'):
-		case('10'):
+		case ('pin bear'):
+		case ('10'):
 			avatarID = 10;
 			break;
-		case('green bear'):
-		case('11'):
+		case ('green bear'):
+		case ('11'):
 			avatarID = 11;
 			break;
-		case('bug bear'):
-		case('12'):
+		case ('bug bear'):
+		case ('12'):
 			avatarID = 12;
 			break;
-		case('teal bear'):
-		case('13'):
+		case ('teal bear'):
+		case ('13'):
 			avatarID = 13;
 			break;
-		case('purple bear'):
-		case('14'):
+		case ('purple bear'):
+		case ('14'):
 			avatarID = 14;
 			break;
-		case('gold bear'):
-		case('15'):
+		case ('gold bear'):
+		case ('15'):
 			avatarID = 15;
 			break;
-		case('goth bear'):
-		case('16'):
+		case ('goth bear'):
+		case ('16'):
 			avatarID = 16;
 			break;
-		case('blue bear'):
-		case('17'):
+		case ('blue bear'):
+		case ('17'):
 			avatarID = 17;
 			break;
-		case('blue cat'):
-		case('18'):
+		case ('blue cat'):
+		case ('18'):
 			avatarID = 18;
 			break;
-		case('green cat'):
-		case('19'):
+		case ('green cat'):
+		case ('19'):
 			avatarID = 19;
 			break;
-		case('blond hero'):
-		case('blond superhero'):
-		case('blond cape'):
-		case('20'):
+		case ('blond hero'):
+		case ('blond superhero'):
+		case ('blond cape'):
+		case ('20'):
 			avatarID = 20;
 			break;
-		case('pink hero'):
-		case('pink cape'):
-		case('pink superhero'):
-		case('21'):
+		case ('pink hero'):
+		case ('pink cape'):
+		case ('pink superhero'):
+		case ('21'):
 			avatarID = 21;
 			break;
-		case('devil'):
-		case('22'):
+		case ('devil'):
+		case ('22'):
 			avatarID = 22;
 			break;
-		case('gorilla'):
-		case('23'):
+		case ('gorilla'):
+		case ('23'):
 			avatarID = 23;
 			break;
-		case('black boy'):
-		case('34'):
+		case ('black boy'):
+		case ('34'):
 			avatarID = 34;
 			break;
-		case('fez monkey'):
-		case('boy monkey'):
-		case('36'):
+		case ('fez monkey'):
+		case ('boy monkey'):
+		case ('36'):
 			avatarID = 36;
 			break;
-		case('girl monkey'):
-		case('pink monkey'):
-		case('37'):
+		case ('girl monkey'):
+		case ('pink monkey'):
+		case ('37'):
 			avatarID = 37;
 			break;
-		case('pink cat'):
-		case('121'):
+		case ('pink cat'):
+		case ('121'):
 			avatarID = 121;
 			break;
-		case('scottish spaceman'):
-		case('27'):
+		case ('scottish spaceman'):
+		case ('27'):
 			avatarID = 27;
 			break;
-		case('brown eyed spaceman'):
-		case('28'):
+		case ('brown eyed spaceman'):
+		case ('28'):
 			avatarID = 28;
 			break;
-		case('fat spaceman'):
-		case('goggles spaceman'):
-		case('29'):
+		case ('fat spaceman'):
+		case ('goggles spaceman'):
+		case ('29'):
 			avatarID = 29;
 			break;
-		case('brown hair spaceman'):
-		case('30'):
+		case ('brown hair spaceman'):
+		case ('30'):
 			avatarID = 30;
 			break;
-		case('black spaceman'):
-		case('31'):
+		case ('black spaceman'):
+		case ('31'):
 			avatarID = 31;
 			break;
-		case('black hair spaceman'):
-		case('32'):
+		case ('black hair spaceman'):
+		case ('32'):
 			avatarID = 32;
 			break;
-		case('spaceman'):
-		case('blue eyed spaceman'):
-		case('33'):
+		case ('spaceman'):
+		case ('blue eyed spaceman'):
+		case ('33'):
 			avatarID = 33;
 			break;
 		default:
-			avatar = parseInt(avatar,10);
-			if(!isNaN(avatar)) {
+			avatar = parseInt(avatar, 10);
+			if (!isNaN(avatar)) {
 				avatarID = avatar;
 			}
 	}
-	if(avatarID) {
+	if (avatarID) {
 		bot.setAvatar(avatarID);
 	}
 }
@@ -1195,28 +1151,28 @@ function newSong(data) {
 function endSong() {
 	log("Doing End Song data stuff");
 	log("current song artist: " + currentSong.artist);
-	var up=currentSong.up;
-	var down=currentSong.down;
-	var snag=currentSong.snags;
-	var song=currentSong.song;
-	var listeners=currentSong.listeners;
-	var songid=currentSong.songid;
-	var artist=currentSong.artist;
-	var artistid=null;
-	var djid=currentSong.djid;
-	var djname=currentSong.djname;
-	var album=currentSong.album;
-	Artist.foc(artist, function(err, docs) {
+	var up = currentSong.up;
+	var down = currentSong.down;
+	var snag = currentSong.snags;
+	var song = currentSong.song;
+	var listeners = currentSong.listeners;
+	var songid = currentSong.songid;
+	var artist = currentSong.artist;
+	var artistid = null;
+	var djid = currentSong.djid;
+	var djname = currentSong.djname;
+	var album = currentSong.album;
+	Artist.foc(artist, function (err, docs) {
 		log(err);
 		a = docs;
-		Song.foc(songid, song, a, function(err, docs) {
+		Song.foc(songid, song, a, function (err, docs) {
 			log(err);
 			s = docs;
-			User.foc(djid, djname, function(err,docs) {
+			User.foc(djid, djname, function (err, docs) {
 				log(err);
-				u=docs;
-				var thisplay=null;
-				Play.foc(null, function(err, docs) {
+				u = docs;
+				var thisplay = null;
+				Play.foc(null, function (err, docs) {
 					log(err);
 					p = docs;
 					p.dj = djid;
@@ -1227,7 +1183,7 @@ function endSong() {
 					p.song = s;
 					p.score = up - down;
 					thisplay = p;
-					p.save(function(err) {
+					p.save(function (err) {
 						log(err);
 					});
 				});
@@ -1240,7 +1196,7 @@ function endSong() {
 					u.record = score;
 					u.recordplay = thisplay;
 				}
-				u.save(function(err) {
+				u.save(function (err) {
 					log(err)
 				});
 			});
@@ -1250,7 +1206,7 @@ function endSong() {
 			s.snags = s.snags ? s.snags + snag : snag;
 			s.album = album;
 			s.plays++;
-			s.save(function(err) {
+			s.save(function (err) {
 				log(err);
 			});
 		});
@@ -1259,26 +1215,26 @@ function endSong() {
 		a.snags = a.snags ? a.snags + snag : snag;
 		a.plays++;
 		a.lowername = artist.toLowerCase();
-		a.save(function(err) {
+		a.save(function (err) {
 			log(err);
 		});
 		artistid = a._id;
 	});
 	var now = new Date();
 	for (var u in users) {
-		User.foc(users[u].userid, users[u].name, function(err, data) {
+		User.foc(users[u].userid, users[u].name, function (err, data) {
 			log(err);
-			us=data;
-			uid=us._id;
+			us = data;
+			uid = us._id;
 			if (users.hasOwnProperty(uid)) {
-				us.lastActive=users[uid].lastActive;
-				us.lowername=users[uid].name.toLowerCase();
-				us.lastSeen=now;
-				if (users[uid].isDj==true) {
-					us.lastDj=now;
+				us.lastActive = users[uid].lastActive;
+				us.lowername = users[uid].name.toLowerCase();
+				us.lastSeen = now;
+				if (users[uid].isDj == true) {
+					us.lastDj = now;
 				}
 			}
-			us.save(function(err) {
+			us.save(function (err) {
 				log(err);
 			});
 		});
@@ -1286,7 +1242,7 @@ function endSong() {
 }
 
 function doUserStats(source) {
-	u=User.findById(source.userid, function(err,doc) {
+	u = User.findById(source.userid, function (err, doc) {
 		if (doc) {
 			speakOut(source.name + ' - You have ' + doc.plays + ' plays ' +
 				' totaling ' + doc.ups + ' ups, ' + doc.downs + ' downs, and ' +
@@ -1298,63 +1254,63 @@ function doUserStats(source) {
 }
 
 function doUserBest(source) {
-	Play.where('dj',source.userid).sort('-score played')
-	.limit(1).select('_id').exec(function(err,doc) {
-		log(err);
-		if (doc) {
-			p=doc[0];
-			if (!p) {
-				speakOut(source.name + ' - I have no record of you');
-				return;
-			}
-			Play.getPlay(p._id, function(err,doc) {
-				log(err);
-				p=doc;
-				Song.getSong(p.song._id, function(err,doc) {
+	Play.where('dj', source.userid).sort('-score played')
+		.limit(1).select('_id').exec(function (err, doc) {
+			log(err);
+			if (doc) {
+				p = doc[0];
+				if (!p) {
+					speakOut(source.name + ' - I have no record of you');
+					return;
+				}
+				Play.getPlay(p._id, function (err, doc) {
 					log(err);
-					s=doc;
-					speakOut(p.dj.name + ' - your best play: '
-						+ p.song.name + ' by ' + s.artist.name
-						+ ' with a combined score of ' + p.score);
+					p = doc;
+					Song.getSong(p.song._id, function (err, doc) {
+						log(err);
+						s = doc;
+						speakOut(p.dj.name + ' - your best play: '
+							+ p.song.name + ' by ' + s.artist.name
+							+ ' with a combined score of ' + p.score);
+					});
 				});
-			});
-		} else {
-			speakOut(source + ' - I have no record of you');
-		}
-	});
+			} else {
+				speakOut(source + ' - I have no record of you');
+			}
+		});
 }
 
 
 function doTopArtist() {
 	Artist.where('ups').gt(0).sort('-ups downs').limit(1)
-	.exec(function(err,doc) {
-		log(err);
-		a=doc[0];
-		speakOut('Top Artist: ' + a.name + ' with ' + a.ups +
-			' up votes, ' + a.downs + ' down votes, ' + a.snags + ' snags ' +
-			' and ' + a.plays + ' plays');
-	});
+		.exec(function (err, doc) {
+			log(err);
+			a = doc[0];
+			speakOut('Top Artist: ' + a.name + ' with ' + a.ups +
+				' up votes, ' + a.downs + ' down votes, ' + a.snags + ' snags ' +
+				' and ' + a.plays + ' plays');
+		});
 	return;
 
 }
 
 function doRecord() {
 	Play.where('score').gt(0).sort('-score played')
-	.limit(1).select('_id').exec(function(err,doc) {
-		log(err);
-		p=doc[0];
-		Play.getPlay(p._id, function(err,doc) {
+		.limit(1).select('_id').exec(function (err, doc) {
 			log(err);
-			p=doc;
-			Song.getSong(p.song._id, function(err,doc) {
+			p = doc[0];
+			Play.getPlay(p._id, function (err, doc) {
 				log(err);
-				s=doc;
-				speakOut('Record Play: ' + p.dj.name + ' played '
-					+ p.song.name + ' by ' + s.artist.name
-					+ ' with a combined score of ' + p.score);
+				p = doc;
+				Song.getSong(p.song._id, function (err, doc) {
+					log(err);
+					s = doc;
+					speakOut('Record Play: ' + p.dj.name + ' played '
+						+ p.song.name + ' by ' + s.artist.name
+						+ ' with a combined score of ' + p.score);
+				});
 			});
 		});
-	});
 }
 
 function log(data) {
@@ -1364,7 +1320,7 @@ function log(data) {
 }
 
 function checkDead() {
-	var now=new Date();
+	var now = new Date();
 	if (now - bot._lastHeartbeat > 5 * 60000) {
 		console.log('Heartbeat Expired - killing bot for reconnect');
 		process.exit(1);
