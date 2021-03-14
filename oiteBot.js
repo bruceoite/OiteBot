@@ -968,7 +968,8 @@ function snag() {
 		speakOut('No song playing.');
 		return;
 	}
-	bot.playlistAdd(currentSong.songid)
+	console.log('Snagging!');
+	bot.playlistAdd(currentSong.songid);
 	bot.snag();
 	speakOut('Added ' + currentSong.song + ' to playlist.');
 }
