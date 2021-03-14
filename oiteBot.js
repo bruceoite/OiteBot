@@ -346,7 +346,10 @@ bot.on('speak', function (data) {
 		case ('snag'):
 			if (userid == conf.OWNER) {
 				snag();
+			} else {
+				speakOut('You aint the boss of me!');
 			}
+
 			break;
 		case ('godj'):
 			if (isAdmin(userid) || isRegular(userid)) {
@@ -961,13 +964,13 @@ function randomBoc() {
 }
 
 function snag() {
+	if (!currentSong) {
+		speakOut('No song playing.');
+		return;
+	}
+	bot.playlistAdd(currentSong.songid)
 	bot.snag();
-	bot.roomInfo(true, function (data) {
-		var newSong = data.room.metadata.current_song._id;
-		var newSongName = songName = data.room.metadata.current_song.metadata.song;
-		bot.playlistAdd(newSong);
-		speakOut('Added ' + newSongName + ' to playlist.');
-	});
+	speakOut('Added ' + currentSong.song + ' to playlist.');
 }
 
 function setAvatar(avatar) {
