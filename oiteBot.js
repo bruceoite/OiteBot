@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 var Bot = require('ttapi');
 var conf = require('./lib/botconfig');
 var lists = require('./lib/lists');
